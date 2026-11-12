@@ -22,6 +22,10 @@ This take-home was developed with assistance from OpenAI Codex.
   comparing UI/API/PostgreSQL, and an EF Core migration. The browser test exposed and drove a fix
   for a false-live SSE state.
 
+- 2026-11-12: A final requirement audit found two weak proofs: UI/DB comparison checked only event
+  IDs, and an already-open SSE was not closed by key rotation. Codex strengthened both. The first
+  Playwright DTO attempt failed (7/8 tests); it was replaced with a compatible DTO and rerun.
+
 ## Human responsibility
 
 The candidate remains responsible for understanding every submitted file and decision, reviewing

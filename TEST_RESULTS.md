@@ -39,17 +39,17 @@ Output:
 ```text
 Passed UiConsistencyTests.Browser_recovers_after_disconnect_and_matches_api_and_database [8 s]
 Passed SilentFailureTests.Conflicting_batch_is_all_or_nothing [65 ms]
-Passed SilentFailureTests.Rotated_key_stops_working_immediately [62 ms]
-Passed SilentFailureTests.Slow_sse_client_can_disconnect_and_catch_up_without_event_loss [704 ms]
-Passed SilentFailureTests.Foreign_and_unknown_ids_have_indistinguishable_errors [27 ms]
-Passed EndToEndTests.Concurrent_exact_batch_retries_commit_once_and_replay_once [68 ms]
-Passed EndToEndTests.Project_isolation_covers_read_write_stream_guessing_and_cache_regression [58 ms]
-Passed EndToEndTests.Consistency_survives_out_of_order_duplicates_late_events_and_reconnect [97 ms]
+Passed SilentFailureTests.Rotated_key_stops_new_requests_and_closes_existing_stream [1 s]
+Passed SilentFailureTests.Slow_sse_client_can_disconnect_and_catch_up_without_event_loss [476 ms]
+Passed SilentFailureTests.Foreign_and_unknown_ids_have_indistinguishable_errors [36 ms]
+Passed EndToEndTests.Concurrent_exact_batch_retries_commit_once_and_replay_once [67 ms]
+Passed EndToEndTests.Project_isolation_covers_read_write_stream_guessing_and_cache_regression [75 ms]
+Passed EndToEndTests.Consistency_survives_out_of_order_duplicates_late_events_and_reconnect [76 ms]
 
 Test Run Successful.
 Total tests: 8
      Passed: 8
- Total time: 10.3773 Seconds
+ Total time: 11.0756 Seconds
 ```
 
 The first test drives real Edge, forces it offline, ingests out-of-order/duplicate/late events,
@@ -70,9 +70,9 @@ Output:
 PROFILE runs=50 events_per_run_per_second=10 duration_seconds=10
 TARGET http://localhost:8080/
 SETUP created_runs=50
-RESULT requests=500 errors=0 elapsed_seconds=10.004
-LATENCY_MS p50=67.3 p95=140.7 p99=149.2 max=170.8
-THROUGHPUT accepted_events_per_second=499.8
+RESULT requests=500 errors=0 elapsed_seconds=10.006
+LATENCY_MS p50=64.7 p95=100.0 p99=108.4 max=130.5
+THROUGHPUT accepted_events_per_second=499.7
 CONSISTENCY expected_events=5000 durable_events=5000 lost_events=0
 ```
 
@@ -89,6 +89,19 @@ soup-tracker-postgres-1   150.5 MiB
 
 After the final production-configuration restart, the API log contains the expected "database is
 already up to date" and healthy startup messages, with no exception, HTTP 500, or failed command.
+
+## Failed strengthening run retained
+
+While strengthening the browser proof to compare every event field, the first Playwright run passed
+7/8 tests and failed only in test-result conversion:
+
+```text
+PlaywrightException: Return type mismatch. Expecting UiEvent, got Object
+MissingMethodException: No parameterless constructor defined.
+```
+
+The application and the new active-stream rotation test passed. The test DTO was changed from a
+positional record to a parameterless property DTO; the browser test and then the full suite passed.
 
 ## Failure retained because it changed the design
 

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -98,22 +99,41 @@ public sealed class UiConsistencyTests
         });
         await Assertions.Expect(page.Locator("#connection")).ToHaveTextAsync("live · receiving");
 
-        var uiIds = (await page.Locator("#event-table tr[data-event-id]").EvaluateAllAsync<string[]>(
-                "rows => rows.map(row => row.dataset.eventId)"))
-            .Select(Guid.Parse)
-            .ToHashSet();
+        var uiEvents = await page.Locator("#event-table tr[data-event-id]").EvaluateAllAsync<UiEvent[]>(
+            "rows => rows.map(row => ({ " +
+            "eventId: row.dataset.eventId, sequence: row.dataset.sequence, " +
+            "metric: row.cells[1].textContent, step: row.cells[2].textContent, " +
+            "value: row.cells[3].textContent, recordedAt: row.dataset.recordedAt }))");
 
-        var apiEvents = await GetJsonAsync(client, $"/runs/{runId}/metrics", apiKey);
-        var apiIds = apiEvents.EnumerateArray()
-            .Select(item => item.GetProperty("eventId").GetGuid())
-            .ToHashSet();
+        var apiJson = await GetJsonAsync(client, $"/runs/{runId}/metrics", apiKey);
+        var apiEvents = apiJson.EnumerateArray()
+            .Select(item => new StoredEvent(
+                item.GetProperty("eventId").GetGuid(),
+                item.GetProperty("metric").GetString()!,
+                item.GetProperty("step").GetInt64(),
+                item.GetProperty("value").GetDouble(),
+                item.GetProperty("recordedAt").GetDateTimeOffset(),
+                item.GetProperty("sequence").GetInt64()))
+            .ToDictionary(item => item.EventId);
 
-        var databaseIds = await ReadEventIdsFromDatabaseAsync(runId);
+        var databaseEvents = (await ReadEventsFromDatabaseAsync(runId))
+            .ToDictionary(item => item.EventId);
         var expected = new HashSet<Guid> { event0, event1, event2, event3 };
 
-        Assert.True(expected.SetEquals(uiIds));
-        Assert.True(expected.SetEquals(apiIds));
-        Assert.True(expected.SetEquals(databaseIds));
+        Assert.True(expected.SetEquals(uiEvents.Select(item => Guid.Parse(item.EventId))));
+        Assert.True(expected.SetEquals(apiEvents.Keys));
+        Assert.True(expected.SetEquals(databaseEvents.Keys));
+        foreach (var uiEvent in uiEvents)
+        {
+            var eventId = Guid.Parse(uiEvent.EventId);
+            var databaseEvent = databaseEvents[eventId];
+            Assert.Equal(databaseEvent, apiEvents[eventId]);
+            Assert.Equal(databaseEvent.Sequence, long.Parse(uiEvent.Sequence, CultureInfo.InvariantCulture));
+            Assert.Equal(databaseEvent.Metric, uiEvent.Metric);
+            Assert.Equal(databaseEvent.Step, long.Parse(uiEvent.Step, CultureInfo.InvariantCulture));
+            Assert.Equal(databaseEvent.Value, double.Parse(uiEvent.Value, CultureInfo.InvariantCulture));
+            Assert.Equal(databaseEvent.RecordedAt, DateTimeOffset.Parse(uiEvent.RecordedAt, CultureInfo.InvariantCulture));
+        }
     }
 
     private static object Metric(Guid eventId, long step, double value, string recordedAt) => new
@@ -151,21 +171,39 @@ public sealed class UiConsistencyTests
         return request;
     }
 
-    private static async Task<HashSet<Guid>> ReadEventIdsFromDatabaseAsync(Guid runId)
+    private static async Task<List<StoredEvent>> ReadEventsFromDatabaseAsync(Guid runId)
     {
         await using var connection = new NpgsqlConnection(ConnectionString);
         await connection.OpenAsync();
         await using var command = new NpgsqlCommand(
-            "SELECT \"EventId\" FROM metric_events WHERE \"RunId\" = @runId ORDER BY \"Sequence\"",
+            "SELECT \"EventId\", \"Metric\", \"Step\", \"Value\", \"RecordedAt\", \"Sequence\" " +
+            "FROM metric_events WHERE \"RunId\" = @runId ORDER BY \"Sequence\"",
             connection);
         command.Parameters.AddWithValue("runId", runId);
         await using var reader = await command.ExecuteReaderAsync();
-        var result = new HashSet<Guid>();
+        var result = new List<StoredEvent>();
         while (await reader.ReadAsync())
         {
-            result.Add(reader.GetGuid(0));
+            result.Add(new StoredEvent(
+                reader.GetGuid(0),
+                reader.GetString(1),
+                reader.GetInt64(2),
+                reader.GetDouble(3),
+                reader.GetFieldValue<DateTimeOffset>(4),
+                reader.GetInt64(5)));
         }
 
         return result;
     }
+    private sealed class UiEvent
+    {
+        public string EventId { get; set; } = string.Empty;
+        public string Sequence { get; set; } = string.Empty;
+        public string Metric { get; set; } = string.Empty;
+        public string Step { get; set; } = string.Empty;
+        public string Value { get; set; } = string.Empty;
+        public string RecordedAt { get; set; } = string.Empty;
+    }
+    private sealed record StoredEvent(Guid EventId, string Metric, long Step, double Value, DateTimeOffset RecordedAt, long Sequence);
+
 }

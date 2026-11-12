@@ -165,7 +165,7 @@ function renderEvents() {
   if (!events.length) {
     table.innerHTML = '<tr><td colspan="5" class="muted">Waiting for metric events…</td></tr>';
   } else {
-    table.innerHTML = events.slice(-100).reverse().map(item => `<tr data-event-id="${item.eventId}" data-sequence="${item.sequence}">
+    table.innerHTML = events.slice(-100).reverse().map(item => `<tr data-event-id="${item.eventId}" data-sequence="${item.sequence}" data-recorded-at="${item.recordedAt}">
       <td>${item.sequence}</td><td>${escapeHtml(item.metric)}</td><td>${item.step}</td>
       <td>${item.value}</td><td>${new Date(item.recordedAt).toLocaleTimeString()}</td>
     </tr>`).join("");

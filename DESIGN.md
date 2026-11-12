@@ -47,7 +47,7 @@ project context. Every run/metric query includes both its ID and `projectId`; co
 keys preserve ownership in PostgreSQL. Run IDs never authorize access. SSE authenticates before
 catch-up and retains only its authorized project/run scope. The first version has no shared response
 cache; regression tests still warm an authorized read before attempting the same ID from another
-project. API-key rotation revokes the presented key and inserts its replacement in one transaction.
+project. API-key rotation revokes the presented key and inserts its replacement in one transaction; the SSE loop rechecks that key and closes an already-open stream after revocation.
 
 Tables are `projects`, `api_keys`, `runs`, `metric_batches`, and `metric_events`. Important unique
 constraints are `(project_id, batch_id)`, `(project_id, event_id)`, and `(run_id, sequence)`.

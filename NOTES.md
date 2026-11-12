@@ -42,7 +42,7 @@ before a cross-project attempt.
 | Duplicate batch/event | Exact retry, concurrent retry, and duplicate event assertions leave one durable copy. |
 | Slow-client overflow | A client leaves SSE unread while 1,500 events commit, disconnects, then catches all 1,500 up by cursor. The stream is not an authoritative queue. |
 | Partial write | A batch containing one new event and one conflicting event returns `409`; the new event is absent. |
-| Old key after rotation | Rotation revokes the authenticated key and creates its replacement in one transaction; old read/write return `401`, new key reads successfully. |
+| Old key after rotation | Rotation revokes the authenticated key and creates its replacement in one transaction; old read/write return `401`, an already-open old-key SSE closes, and the new key succeeds. |
 
 The browser test would **not** catch a crash between PostgreSQL's physical commit and sending the
 HTTP response, multi-instance proxy buffering, a multi-hour memory leak, backup corruption, or a
@@ -52,8 +52,8 @@ remaining cases require fault injection, soak tests, proxy staging, and restore 
 ## Evidence, verdict, and concerns
 
 On a clean migrated database, all 8 black-box tests passed. The stated 50 runs × 10 events/second for
-10 seconds produced 500 batches and 5,000 durable events with zero request errors or loss: 499.8
-events/second, p50 67.3 ms, p95 140.7 ms, p99 149.2 ms, max 170.8 ms. Therefore: **SHIP for the
+10 seconds produced 500 batches and 5,000 durable events with zero request errors or loss: 499.7
+events/second, p50 64.7 ms, p95 100.0 ms, p99 108.4 ms, max 130.5 ms. Therefore: **SHIP for the
 explicit take-home workload on one API instance; DON'T SHIP as a public production service yet.**
 
 The first change for sustained growth would be durable notification-assisted SSE plus measured query

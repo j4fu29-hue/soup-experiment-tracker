@@ -46,11 +46,20 @@ public sealed class SilentFailureTests
     }
 
     [Fact]
-    public async Task Rotated_key_stops_working_immediately()
+    public async Task Rotated_key_stops_new_requests_and_closes_existing_stream()
     {
         using var client = NewClient();
         var oldKey = await CreateProjectAsync(client, "key-rotation");
         var runId = await CreateRunAsync(client, oldKey, "before-rotation");
+
+        using var streamRequest = Authorized(HttpMethod.Get, $"/runs/{runId}/events", oldKey);
+        using var oldKeyStream = await client.SendAsync(
+            streamRequest,
+            HttpCompletionOption.ResponseHeadersRead);
+        Assert.Equal(HttpStatusCode.OK, oldKeyStream.StatusCode);
+        await using var stream = await oldKeyStream.Content.ReadAsStreamAsync();
+        using var reader = new StreamReader(stream);
+        Assert.Equal(": connected", await reader.ReadLineAsync());
 
         using var rotation = await PostAsync(client, "/api-keys/rotate", oldKey, new { name = "replacement" });
         Assert.Equal(HttpStatusCode.Created, rotation.StatusCode);
@@ -62,6 +71,13 @@ public sealed class SilentFailureTests
 
         using var newKeyRead = await GetAsync(client, $"/runs/{runId}", newKey);
         Assert.Equal(HttpStatusCode.OK, newKeyRead.StatusCode);
+
+        using var streamCloseTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        string? line;
+        do
+        {
+            line = await reader.ReadLineAsync(streamCloseTimeout.Token);
+        } while (line is not null);
 
         using var oldKeyWrite = await PostAsync(client, $"/runs/{runId}/metrics", oldKey, new
         {

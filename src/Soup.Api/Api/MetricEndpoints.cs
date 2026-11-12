@@ -263,6 +263,16 @@ public static class MetricEndpoints
         var lastHeartbeat = DateTimeOffset.UtcNow;
         while (!cancellationToken.IsCancellationRequested)
         {
+            var apiKeyIsActive = await database.ApiKeys.AsNoTracking().AnyAsync(
+                key => key.ProjectId == project.ProjectId &&
+                       key.Id == project.ApiKeyId &&
+                       key.RevokedAt == null,
+                cancellationToken);
+            if (!apiKeyIsActive)
+            {
+                return;
+            }
+
             var events = await database.MetricEvents
                 .AsNoTracking()
                 .Where(metricEvent => metricEvent.ProjectId == project.ProjectId &&
