@@ -54,7 +54,7 @@ remaining cases require fault injection, soak tests, proxy staging, and restore 
 On a clean migrated database, all 8 black-box tests passed. The stated 50 runs × 10 events/second for
 10 seconds produced 500 batches and 5,000 durable events with zero request errors or loss: 499.7
 events/second, p50 64.7 ms, p95 100.0 ms, p99 108.4 ms, max 130.5 ms. Therefore: **SHIP for the
-explicit take-home workload on one API instance; DON'T SHIP as a public production service yet.**
+explicit take-home workload on one API instance; DON'T SHIP as a public production service yet.** The profile measures 50 concurrent writers and durability, not 50 simultaneous dashboard viewers, so it is not a streaming fan-out claim.
 
 The first change for sustained growth would be durable notification-assisted SSE plus measured query
 and connection-pool tuning, followed by a real soak test. Before public use I would also add TLS at a

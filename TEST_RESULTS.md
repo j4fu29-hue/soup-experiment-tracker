@@ -76,6 +76,8 @@ THROUGHPUT accepted_events_per_second=499.7
 CONSISTENCY expected_events=5000 durable_events=5000 lost_events=0
 ```
 
+This profile measures 50 concurrent run writers and durability; it does not open 50 simultaneous SSE dashboard clients.
+
 Post-run snapshot (counts also include the eight tests):
 
 ```text
